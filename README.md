@@ -601,7 +601,3 @@ gcloud sql instances patch clinical-trial-db \
 - [ ] Implement fine-tuned embedding model for clinical domain
 
 ---
-
-## 📄 License
-
-MIT License — see [LICENSE](LICENSE) for details.
