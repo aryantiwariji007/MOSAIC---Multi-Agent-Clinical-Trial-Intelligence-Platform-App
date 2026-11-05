@@ -8,7 +8,7 @@
 #
 # WHAT IS A LANGRAPH TOOL?
 #   In LangGraph, a "tool" is a function that an agent can CHOOSE to call.
-#   The agent does not call tools directly in code — instead, GPT-4o
+#   The agent does not call tools directly in code — instead, Gemini
 #   DECIDES which tools to call based on what it is trying to find out.
 #
 #   Think of it like giving a detective a set of capabilities:
@@ -33,13 +33,13 @@
 #
 # HOW LANGRAPH TOOLS WORK — THE @tool DECORATOR:
 #   @tool is a LangChain/LangGraph decorator that transforms a regular
-#   Python function into a tool that GPT-4o can call.
+#   Python function into a tool that Gemini can call.
 #   It reads the function's docstring to understand what the tool does.
 #   It reads the function's type hints to know what parameters to pass.
-#   GPT-4o uses this information to decide WHEN and HOW to call each tool.
+#   Gemini uses this information to decide WHEN and HOW to call each tool.
 #
 #   IMPORTANT: The docstring is NOT just for human readers —
-#   GPT-4o reads it to understand what the tool does.
+#   Gemini reads it to understand what the tool does.
 #   Write docstrings as if you are explaining to the AI what this tool is for.
 #
 # SHOULD YOU RUN THIS FILE DIRECTLY?
@@ -55,7 +55,7 @@ import json
 from langchain_core.tools import tool
 # @tool is the LangChain decorator that turns a Python function
 # into a LangGraph-compatible tool.
-# After applying @tool, GPT-4o can call the function by name,
+# After applying @tool, Gemini can call the function by name,
 # passing the parameters it decides are needed.
 
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
@@ -171,14 +171,14 @@ async def search_studies_by_meaning(
     source_filter: str = "study",
 ) -> str:
     # @tool transforms this regular function into a LangGraph tool.
-    # GPT-4o reads the function name, docstring, and parameter types
+    # Gemini reads the function name, docstring, and parameter types
     # to understand what this tool does and when to call it.
     #
-    # The function name "search_studies_by_meaning" tells GPT-4o
+    # The function name "search_studies_by_meaning" tells Gemini
     # that this tool searches studies semantically.
     #
     # Parameters:
-    # query: str           → GPT-4o passes the search question as a string
+    # query: str           → Gemini passes the search question as a string
     # top_k: int = 5       → how many results to return (default 5)
     # source_filter: str   → "study" or "paper" (default "study")
     #
@@ -243,7 +243,7 @@ async def search_studies_by_meaning(
         return json.dumps({
             "results": results,
             # The list of matching chunks with their similarity scores.
-            # GPT-4o reads through these to find signals.
+            # Gemini reads through these to find signals.
 
             "count":   len(results),
             # How many results came back — useful for the agent to know
@@ -252,7 +252,7 @@ async def search_studies_by_meaning(
             "query":   query,
             # Echo the query back — helps the agent track what it searched.
         }, indent=2, default=str)
-        # indent=2 makes the JSON readable — important because GPT-4o
+        # indent=2 makes the JSON readable — important because Gemini
         # reads this output and indented JSON is easier to parse.
         # default=str handles any non-serialisable values (like datetime)
         # by converting them to strings automatically.

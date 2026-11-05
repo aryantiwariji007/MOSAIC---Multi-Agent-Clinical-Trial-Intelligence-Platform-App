@@ -13,9 +13,9 @@
 #   — this file is what finds the answer.
 #
 # HOW SEMANTIC SEARCH WORKS HERE — STEP BY STEP:
-#   1. The agent's question gets converted to 1536 numbers (embedder.py)
-#   2. This file sends those 1536 numbers to Cloud SQL
-#   3. pgvector compares them against every chunk's 1536 numbers
+#   1. The agent's question gets converted to 768 numbers (embedder.py)
+#   2. This file sends those 768 numbers to Cloud SQL
+#   3. pgvector compares them against every chunk's 768 numbers
 #   4. The chunks whose numbers are CLOSEST get returned
 #   5. "Closest" is measured using cosine similarity — the <=> operator
 #
@@ -181,9 +181,9 @@ class VectorStore:
                 # Local: "34.133.55.17" (public IP)
                 # Cloud Run: "/cloudsql/project:region:instance" (Unix socket)
 
-                port=int(settings.db_port),
+                port=settings.db_port,
                 # Port 5432 — standard PostgreSQL port.
-                # We cast to int because settings.db_port is stored as str.
+                # settings.db_port is already validated as an int.
 
                 database=settings.db_name,
                 # "clinical_trial_db" — the database we created.
@@ -219,7 +219,7 @@ class VectorStore:
             Reading a chunk → asyncpg.exceptions.UndefinedTypeError
 
         WITH THIS:
-            Python [0.023, -0.041, 0.891, ...] ↔ PostgreSQL VECTOR(1536)
+            Python [0.023, -0.041, 0.891, ...] ↔ PostgreSQL VECTOR(768)
             The conversion happens automatically, invisibly.
 
         Args:
@@ -275,7 +275,7 @@ class VectorStore:
         self,
         chunks: list[EmbeddedChunk],
         # The list of EmbeddedChunk objects from embedder.py.
-        # Each one has text + metadata + 1536-number embedding.
+        # Each one has text + metadata + 768-number embedding.
 
     ) -> int:
         """
@@ -433,7 +433,7 @@ class VectorStore:
     async def search(
         self,
         query_embedding: list[float],
-        # The search query converted to 1536 numbers.
+        # The search query converted to 768 numbers.
         # The caller (an agent) creates this by embedding its
         # question text using the same embedding model.
 
@@ -462,7 +462,7 @@ class VectorStore:
         the relevant chunks stored in Cloud SQL.
 
         Args:
-            query_embedding:  The search query as 1536 numbers.
+            query_embedding:  The search query as 768 numbers.
             top_k:            How many results to return.
             source_filter:    Optional filter by source type.
             nct_id_filter:    Optional filter by specific study.

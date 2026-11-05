@@ -38,12 +38,12 @@
 import json
 # json.dumps() converts Python dicts to JSON strings.
 # LangGraph tools must always return strings — never dicts or lists.
-# GPT-4o reads the JSON string as text and extracts what it needs.
+# Gemini reads the JSON string as text and extracts what it needs.
 
 from langchain_core.tools import tool
 # @tool decorator transforms a regular Python function into a tool
-# that GPT-4o can call autonomously during agent reasoning.
-# GPT-4o reads the function name, docstring, and parameter types
+# that Gemini can call autonomously during agent reasoning.
+# Gemini reads the function name, docstring, and parameter types
 # to understand what the tool does and when to use it.
 
 from ingestion.pubmed_client import PubMedClient
@@ -446,7 +446,7 @@ async def compare_filing_vs_papers(
             "(3) outcome results that contradict the filing's claims, "
             "(4) results data in papers when filing shows results_posted=False."
         )
-        # This note is guidance for GPT-4o — it tells the agent
+        # This note is guidance for Gemini — it tells the agent
         # exactly what to look for when comparing the two sources.
         # Clear instructions in tool output = better agent reasoning.
         # Without this note, the agent might just summarise the papers

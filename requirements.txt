@@ -5,10 +5,8 @@ fastapi
 uvicorn[standard]
 httpx
 langgraph
-langchain
+langchain-core
 langchain-google-genai
-langchain-community
-langmem
 google-genai
 google-cloud-storage
 google-cloud-secret-manager
@@ -16,10 +14,10 @@ asyncpg
 sqlalchemy[asyncio]
 pgvector
 psycopg2-binary
-langsmith
 pytest
 pytest-asyncio
 httpx
+requests
 python-multipart
 tenacity
 structlog

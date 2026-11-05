@@ -17,14 +17,14 @@
 #   - All env vars are defined in ONE place
 #   - All are TYPED — DB_PORT is validated, not a raw string
 #   - All required vars are validated at STARTUP
-#   - If OPENAI_API_KEY is missing, you get a clear error immediately
+#   - If GEMINI_API_KEY is missing, you get a clear error immediately
 #     when the app starts — not when the first LLM call fires
 #   This is called "fail fast" — better to crash at startup with a
 #   clear message than to fail silently in the middle of a run.
 #
 # HOW TO USE IN ANY FILE:
 #   from config.settings import settings
-#   print(settings.openai_api_key)
+#   print(settings.gemini_api_key)
 #   print(settings.gcp_project_id)
 #   print(settings.database_url)   ← computed property, built from parts
 ##############################################################################
@@ -49,7 +49,7 @@ class Settings(BaseSettings):
     Pydantic reads these values from environment variables automatically.
     Field names here map directly to .env variable names.
     case_sensitive=False means:
-      openai_api_key here → OPENAI_API_KEY in .env
+      gemini_api_key here → GEMINI_API_KEY in .env
       db_host here        → DB_HOST in .env
     """
 
@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         # Ensures special characters in passwords are read correctly.
 
         case_sensitive=False,
-        # OPENAI_API_KEY in .env matches openai_api_key here.
+        # GEMINI_API_KEY in .env matches gemini_api_key here.
         # .env files are conventionally UPPERCASE.
         # Python attributes are conventionally lowercase.
         # case_sensitive=False bridges that gap automatically.
@@ -102,30 +102,6 @@ class Settings(BaseSettings):
     gemini_chat_model: str = Field(
         default="gemini-3.5-flash",
         description="Gemini model used for agent reasoning"
-    )
-
-    # ── LANGSMITH ─────────────────────────────────────────────
-
-    langsmith_api_key: str = Field(
-        default = "",
-        # Required — LangSmith tracing must be enabled.
-        # Without it we cannot see what agents are reasoning about.
-        description="Langsmith API key - Optional"
-    )
-
-    langsmith_project: str = Field(
-        default="clinical_trial_intelligence",
-        # The LangSmith project name — all traces from this system
-        # appear under this project in the LangSmith dashboard.
-        description="Langsmith project name"
-    )
-
-    langsmith_tracing_v2: bool = Field(
-        default=False,
-        # True = LangSmith tracing is active.
-        # Every LLM call, every tool call, every agent run is traced.
-        # Set to False in .env to disable tracing (saves LangSmith quota).
-        description="Enable langsmith tracing for all the agent runs"
     )
 
     # ── GCP ───────────────────────────────────────────────────
@@ -166,11 +142,11 @@ class Settings(BaseSettings):
         description="Cloud SQL host IP (local) or socket path (Cloud Run)"
     )
 
-    db_port: str = Field(
+    db_port: int = Field(
         default=5432,
         # PostgreSQL standard port.
-        # Kept as str to avoid type conflicts when building connection strings.
-        # asyncpg accepts both int and str for port.
+        # Pydantic converts DB_PORT from .env to an int at startup,
+        # so every asyncpg connection receives a real integer.
         description="PostgreSQL port"
     )
 

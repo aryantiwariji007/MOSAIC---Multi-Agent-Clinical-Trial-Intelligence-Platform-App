@@ -10,7 +10,7 @@
 #   2. Saves each study's metadata into the Cloud SQL studies table
 #      (required first because chunks have a foreign key to studies)
 #   3. Splits each study's text into overlapping chunks (chunker.py)
-#   4. Converts each chunk into 1536 numbers via OpenAI (embedder.py)
+#   4. Converts each chunk into 768 numbers via Gemini (embedder.py)
 #   5. Saves chunks + embeddings into Cloud SQL chunks table (vector_store.py)
 #
 # WHY THIS ORDER MATTERS:
@@ -34,7 +34,7 @@
 #   2024-03-15 14:32:16 | INFO | Chunked all studies | total_chunks=312
 #   2024-03-15 14:32:16 | INFO | Starting embedding | total_chunks=312
 #   2024-03-15 14:32:18 | INFO | Embedding batch 1/7 | chunks_in_batch=50
-#   2024-03-15 14:32:20 | INFO | Batch embedded successfully | chunks=50 | embedding_dims=1536
+#   2024-03-15 14:32:20 | INFO | Batch embedded successfully | chunks=50 | embedding_dims=768
 #   ... repeats for each batch ...
 #   2024-03-15 14:32:45 | INFO | Chunks saved | saved=312 | skipped=0
 #   2024-03-15 14:32:45 | INFO | Processing complete
@@ -60,7 +60,7 @@ async def run_processing():
     Runs the complete processing pipeline from start to finish.
 
     Reads cleaned studies from GCS, chunks them, embeds them via
-    OpenAI, and stores everything in Cloud SQL for agent search.
+    Gemini, and stores everything in Cloud SQL for agent search.
     """
     gcs_store = GCSStore()
     chunker = Chunker()
@@ -144,9 +144,9 @@ async def run_processing():
         logger.info("Embedding chunks via Gemini...")
 
         embedded_chunks = await embedder.embed_chunks(all_chunks)
-        # This is the step that costs OpenAI API credit.
-        # embed_chunks() sends chunks in batches of 50 to OpenAI.
-        # Each chunk comes back with 1536 numbers attached.
+        # This is the step that costs Gemini API credit.
+        # embed_chunks() sends chunks in batches of 50 to Gemini.
+        # Each chunk comes back with 768 numbers attached.
         # Total cost for 300 chunks ≈ $0.001 — negligible.
 
         logger.info(f"Total chunks embedded: {len(embedded_chunks)}")
@@ -156,7 +156,7 @@ async def run_processing():
 
         chunks_stored = await vector_store.save_embedded_chunks(embedded_chunks)
         # save_embedded_chunks() inserts every EmbeddedChunk into the
-        # chunks table — text, metadata, AND the 1536-number vector.
+        # chunks table — text, metadata, AND the 768-number vector.
         # Uses ON CONFLICT DO NOTHING so re-runs do not duplicate data.
 
         # ── FINAL SUMMARY ──────────────────────────────────────

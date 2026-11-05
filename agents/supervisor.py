@@ -158,15 +158,15 @@ async def supervisor_compile(state: MosaicState) -> dict:
     WHAT THIS FUNCTION DOES:
     1. Collects all signals from state (from all 6 agents)
     2. Separates high-confidence signals from those needing review
-    3. Uses GPT-4o to write a professional intelligence brief
+    3. Uses Gemini to write a professional intelligence brief
     4. Returns the completed state
 
-    WHY USE GPT-4o TO WRITE THE BRIEF?
+    WHY USE Gemini TO WRITE THE BRIEF?
     The raw signals are structured data — JSON with fields like
     summary, confidence, nct_id. They are accurate but not readable.
-    GPT-4o transforms them into a professional narrative brief that
+    Gemini transforms them into a professional narrative brief that
     a human analyst can read and act on immediately.
-    The signals provide the FACTS. GPT-4o provides the WRITING.
+    The signals provide the FACTS. Gemini provides the WRITING.
 
     Args:
         state: The full MosaicState — now populated with all agent signals.
@@ -217,13 +217,13 @@ async def supervisor_compile(state: MosaicState) -> dict:
         # the review queue for these.
     ]
 
-    # ── FORMAT SIGNALS FOR GPT-4o ─────────────────────────────────────────
+    # ── FORMAT SIGNALS FOR Gemini ─────────────────────────────────────────
     signals_text = _format_signals_for_llm(signals)
     # Convert the list of signal dicts into a clean text block
-    # that GPT-4o can read and summarise effectively.
+    # that Gemini can read and summarise effectively.
     # Explained in detail below in _format_signals_for_llm.
 
-    # ── BUILD THE PROMPT FOR GPT-4o ───────────────────────────────────────
+    # ── BUILD THE PROMPT FOR Gemini ───────────────────────────────────────
     system_prompt = """You are the Chief Intelligence Officer of MOSAIC —
 a clinical trial research integrity system. Your job is to compile
 a professional executive intelligence brief from the signals generated
@@ -242,7 +242,7 @@ TONE: Professional, factual, actionable. Write as if briefing a
 senior compliance officer or investigative journalist.
 Be specific — include NCT IDs, sponsor names, and exact timeframes.
 """
-    # The system prompt establishes GPT-4o's role and gives it
+    # The system prompt establishes Gemini's role and gives it
     # a clear format to follow. Structured prompts produce
     # structured, consistent outputs — critical for a production system.
 
@@ -259,9 +259,9 @@ AGENTS ACTIVATED: {', '.join(agents_activated)}
 Please compile the final intelligence brief now.
 """
     # The human prompt provides the actual content — the task and
-    # all the signals. GPT-4o uses this to write the brief.
+    # all the signals. Gemini uses this to write the brief.
 
-    # ── CALL GPT-4o ───────────────────────────────────────────────────────
+    # ── CALL Gemini ───────────────────────────────────────────────────────
     try:
         response = await llm.ainvoke(
             [
@@ -270,13 +270,13 @@ Please compile the final intelligence brief now.
             ]
             # ainvoke() is the ASYNC version of invoke().
             # "a" prefix = async in LangChain's naming convention.
-            # We await it because it makes a network call to OpenAI.
+            # We await it because it makes a network call to Gemini.
             # The list contains our two messages — system first, then human.
-            # GPT-4o reads both and generates the brief.
+            # Gemini reads both and generates the brief.
         )
 
         final_brief = response.content
-        # response.content is the text GPT-4o generated.
+        # response.content is the text Gemini generated.
         # This is the complete intelligence brief — ready to return.
 
         logger.info(
@@ -286,12 +286,12 @@ Please compile the final intelligence brief now.
         )
 
     except Exception as e:
-        # If GPT-4o call fails, fall back to a structured plain-text brief.
+        # If Gemini call fails, fall back to a structured plain-text brief.
         # The run should not crash just because the LLM had an issue.
         logger.error(f"LLM brief compilation failed | error={e}")
         final_brief = _fallback_brief(signals, agents_activated, task)
         # _fallback_brief() generates a basic brief from the raw signal
-        # data without using GPT-4o — explained below.
+        # data without using Gemini — explained below.
 
     return {
         "final_brief":              final_brief,
@@ -318,11 +318,11 @@ Please compile the final intelligence brief now.
 def _format_signals_for_llm(signals: list[SignalOutput]) -> str:
     """
     Converts a list of signal dicts into a clean, readable text block
-    that GPT-4o can effectively summarise into the final brief.
+    that Gemini can effectively summarise into the final brief.
 
-    WHY FORMAT BEFORE SENDING TO GPT-4o?
+    WHY FORMAT BEFORE SENDING TO Gemini?
     Raw signal dicts are JSON — full of curly braces and quotes.
-    GPT-4o works better with plain, labelled text than raw JSON.
+    Gemini works better with plain, labelled text than raw JSON.
     Formatting the signals into clear sections produces better briefs.
 
     Args:
@@ -358,7 +358,7 @@ def _format_signals_for_llm(signals: list[SignalOutput]) -> str:
         lines.append(f"  Summary:     {signal.get('summary', '')}")
         lines.append("")
         # Empty string adds a blank line between signals —
-        # makes the text block much easier for GPT-4o to parse.
+        # makes the text block much easier for Gemini to parse.
 
     return "\n".join(lines)
     # Join all lines with newline characters.
@@ -375,11 +375,11 @@ def _fallback_brief(
     task:             str,
 ) -> str:
     """
-    Generates a basic structured brief WITHOUT using GPT-4o.
+    Generates a basic structured brief WITHOUT using Gemini.
 
     Called when the LLM call fails — ensures the API always returns
-    something useful even if OpenAI is down or rate-limited.
-    The output is less polished than the GPT-4o brief but contains
+    something useful even if Gemini is down or rate-limited.
+    The output is less polished than the Gemini brief but contains
     all the factual information the caller needs.
 
     Args:

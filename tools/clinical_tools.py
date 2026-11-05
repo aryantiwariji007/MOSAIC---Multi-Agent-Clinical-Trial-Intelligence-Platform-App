@@ -44,7 +44,7 @@ import json
 
 from langchain_core.tools import tool
 # @tool decorator transforms functions into LangGraph-compatible tools.
-# GPT-4o reads the function name, docstring, and parameter types
+# Gemini reads the function name, docstring, and parameter types
 # to decide when and how to call each tool autonomously.
 
 from ingestion.clinical_trials_client import ClinicalTrialsClient

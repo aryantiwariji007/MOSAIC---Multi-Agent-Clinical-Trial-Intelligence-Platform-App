@@ -166,7 +166,7 @@ curl -s -X POST \
 
 **↓**
 
-**MEMORY LAYER (LangMem)**
+**MEMORY LAYER**
 
 **├── **episodic_store.py            (past **sessions, semantic search)**
 
@@ -176,7 +176,7 @@ curl -s -X POST \
 
 **↓**
 
-**AGENT **GRAPH (LangGraph + GPT-4o — **PARALLEL EXECUTION)**
+**AGENT **GRAPH (LangGraph + Gemini — **PARALLEL EXECUTION)**
 
 **├── **Supervisor                   **(routes + compiles brief)**
 

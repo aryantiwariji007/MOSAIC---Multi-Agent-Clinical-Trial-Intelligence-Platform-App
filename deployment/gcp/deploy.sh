@@ -96,19 +96,23 @@ echo ""
 
 echo "Step 1: Enabling required GCP APIs..."
 
+# NOTE: comments cannot go inside a multi-line command. A comment line ends
+# the command there and bash runs the next line as a new command. So each
+# command below is explained above it and left uninterrupted.
+#
+# run.googleapis.com              Cloud Run — the serverless container platform we deploy to.
+# cloudbuild.googleapis.com       Cloud Build — used by GCP for container operations.
+# containerregistry.googleapis.com Container Registry — where we store our Docker image.
+# sqladmin.googleapis.com         Cloud SQL Admin — manages our PostgreSQL instance.
+# storage.googleapis.com          Cloud Storage — where our study files are stored.
+# secretmanager.googleapis.com    Secret Manager — stores our API keys and passwords securely.
 gcloud services enable \
     run.googleapis.com \
-    # Cloud Run — the serverless container platform we deploy to.
     cloudbuild.googleapis.com \
-    # Cloud Build — used by GCP for container operations.
     containerregistry.googleapis.com \
-    # Container Registry — where we store our Docker image.
     sqladmin.googleapis.com \
-    # Cloud SQL Admin — manages our PostgreSQL instance.
     storage.googleapis.com \
-    # Cloud Storage — where our study files are stored.
     secretmanager.googleapis.com \
-    # Secret Manager — stores our API keys and passwords securely.
     --project=${PROJECT_ID}
 
 echo "✓ APIs enabled"
@@ -219,7 +223,6 @@ create_or_update_secret() {
 
 # Store each secret
 create_or_update_secret "gemini-api-key"     "${GEMINI_API_KEY}"
-create_or_update_secret "langsmith-api-key"  "${LANGSMITH_API_KEY}"
 create_or_update_secret "db-password"        "${DB_PASSWORD}"
 
 echo "✓ Secrets stored in Secret Manager"
@@ -235,25 +238,21 @@ echo "✓ Secrets stored in Secret Manager"
 echo ""
 echo "Step 5: Building Docker image for linux/amd64..."
 
+# --platform linux/amd64  Forces AMD64 architecture — critical for Cloud Run on Apple Silicon.
+# --tag                   Tag the image with :latest — the version we are about to deploy.
+# --file                  Path to our Dockerfile relative to the build context.
+# --push                  Builds AND pushes to the registry in one command.
+#                         Without --push, the image is built locally but not uploaded.
+#                         Cloud Run needs the image in the registry — local is not enough.
+# .                       The build context — the . means "use the current directory".
+#                         Docker sends all files in this directory to the build daemon.
+#                         .dockerignore controls which files are excluded.
 docker buildx build \
     --platform linux/amd64 \
-    # Forces AMD64 architecture — critical for Cloud Run on Apple Silicon.
-
     --tag ${IMAGE_NAME}:latest \
-    # Tag the image with :latest — the version we are about to deploy.
-
     --file deployment/Dockerfile \
-    # Path to our Dockerfile relative to the build context.
-
     --push \
-    # --push builds AND pushes to the registry in one command.
-    # Without --push, the image is built locally but not uploaded.
-    # Cloud Run needs the image in the registry — local is not enough.
-
     .
-    # The build context — the . means "use the current directory".
-    # Docker sends all files in this directory to the build daemon.
-    # .dockerignore controls which files are excluded.
 
 echo "✓ Image built and pushed: ${IMAGE_NAME}:latest"
 
@@ -267,29 +266,73 @@ echo "✓ Image built and pushed: ${IMAGE_NAME}:latest"
 echo ""
 echo "Step 6: Deploying to Cloud Run..."
 
+# --image                  Which Docker image to run — the one we just built and pushed.
+#
+# --platform=managed       managed = Cloud Run (fully managed, serverless).
+#                          Alternative is "gke" (Google Kubernetes Engine) which requires
+#                          managing your own cluster. We use managed — simpler and cheaper.
+#
+# --region                 Which GCP region to deploy to.
+#                          Must match the region of your Cloud SQL instance.
+#
+# --service-account        Which service account Cloud Run runs as.
+#                          This account has the permissions we granted in Step 3.
+#
+# --add-cloudsql-instances Tells Cloud Run to open a secure connection to our Cloud SQL instance.
+#                          Cloud Run connects via a Unix socket at:
+#                          /cloudsql/PROJECT:REGION:INSTANCE
+#                          More secure than TCP — no IP address exposed, no firewall rules needed.
+#
+# --set-env-vars           Set non-sensitive environment variables directly.
+#                          These are not secret — they are just configuration.
+#                          DB_HOST uses the Unix socket path (not an IP) for Cloud Run.
+#
+# --set-secrets            Inject secrets from Secret Manager as environment variables.
+#                          Format: ENV_VAR_NAME=SECRET_NAME:VERSION
+#                          :latest means use the most recent version of the secret.
+#                          The secret VALUES are never visible in logs or gcloud commands.
+#
+# --min-instances=0        Minimum running instances.
+#                          0 = scales to zero when no requests come in.
+#                          This means ZERO cost when the API is idle.
+#                          Cloud Run starts a new instance automatically when a request arrives.
+#
+# --max-instances=3        Maximum simultaneous instances.
+#                          3 is enough for our workload — each instance handles one request at a time.
+#                          Increasing this allows more parallel analysis runs.
+#
+# --memory=2Gi             Memory per instance. 2GB is required for:
+#                          - LangGraph graph in memory
+#                          - 6 simultaneous agent LLM calls
+#                          - pgvector embedding operations
+#                          Less than 2GB causes out-of-memory crashes mid-analysis.
+#
+# --cpu=2                  CPU cores per instance.
+#                          2 CPUs allows parallel processing within each instance.
+#                          The 6 agents run concurrently — more CPUs = faster execution.
+#
+# --timeout=300            Request timeout in seconds.
+#                          300 seconds = 5 minutes maximum per request.
+#                          A full analysis run with 6 agents typically takes 15-60 seconds.
+#                          We set 300 as a generous safety buffer.
+#
+# --concurrency=1          How many requests one instance handles simultaneously.
+#                          1 = one analysis run per instance at a time.
+#                          This prevents memory pressure from concurrent heavy workloads.
+#                          Cloud Run scales OUT (more instances) not UP (more concurrent) for us.
+#
+# --no-allow-unauthenticated
+#                          Require authentication for all requests.
+#                          Without this, the API is publicly accessible — anyone on the internet
+#                          could trigger expensive analysis runs on our behalf.
+#                          Callers must include a Google identity token in the Authorization header.
+#                          Use --allow-unauthenticated for a public demo (personal GCP account).
 gcloud run deploy ${SERVICE_NAME} \
     --image=${IMAGE_NAME}:latest \
-    # Which Docker image to run — the one we just built and pushed.
-
     --platform=managed \
-    # managed = Cloud Run (fully managed, serverless).
-    # Alternative is "gke" (Google Kubernetes Engine) which requires
-    # managing your own cluster. We use managed — simpler and cheaper.
-
     --region=${REGION} \
-    # Which GCP region to deploy to.
-    # Must match the region of your Cloud SQL instance.
-
     --service-account=${SERVICE_ACCOUNT_EMAIL} \
-    # Which service account Cloud Run runs as.
-    # This account has the permissions we granted in Step 3.
-
     --add-cloudsql-instances=${CLOUD_SQL_INSTANCE} \
-    # Tells Cloud Run to open a secure connection to our Cloud SQL instance.
-    # Cloud Run connects via a Unix socket at:
-    # /cloudsql/PROJECT:REGION:INSTANCE
-    # More secure than TCP — no IP address exposed, no firewall rules needed.
-
     --set-env-vars="\
 GCP_PROJECT_ID=${PROJECT_ID},\
 GCP_REGION=${REGION},\
@@ -301,67 +344,19 @@ DB_USER=${DB_USER},\
 GEMINI_EMBEDDING_MODEL=${GEMINI_EMBEDDING_MODEL},\
 GEMINI_EMBEDDING_DIMENSIONS=${GEMINI_EMBEDDING_DIMENSIONS},\
 GEMINI_CHAT_MODEL=${GEMINI_CHAT_MODEL},\
-LANGSMITH_PROJECT=${LANGSMITH_PROJECT},\
-LANGSMITH_TRACING_V2=${LANGSMITH_TRACING_V2},\
 API_HOST=0.0.0.0,\
 API_PORT=8000,\
 API_ENV=production" \
-    # Set non-sensitive environment variables directly.
-    # These are not secret — they are just configuration.
-    # DB_HOST uses the Unix socket path (not an IP) for Cloud Run.
-
     --set-secrets="\
 GEMINI_API_KEY=gemini-api-key:latest,\
-LANGSMITH_API_KEY=langsmith-api-key:latest,\
 DB_PASSWORD=db-password:latest" \
-    # Inject secrets from Secret Manager as environment variables.
-    # Format: ENV_VAR_NAME=SECRET_NAME:VERSION
-    # :latest means use the most recent version of the secret.
-    # The secret VALUES are never visible in logs or gcloud commands.
-
     --min-instances=0 \
-    # Minimum running instances.
-    # 0 = scales to zero when no requests come in.
-    # This means ZERO cost when the API is idle.
-    # Cloud Run starts a new instance automatically when a request arrives.
-
     --max-instances=3 \
-    # Maximum simultaneous instances.
-    # 3 is enough for our workload — each instance handles one request at a time.
-    # Increasing this allows more parallel analysis runs.
-
     --memory=2Gi \
-    # Memory per instance.
-    # 2GB is required for:
-    # - LangGraph graph in memory
-    # - 6 simultaneous agent LLM calls
-    # - pgvector embedding operations
-    # Less than 2GB causes out-of-memory crashes mid-analysis.
-
     --cpu=2 \
-    # CPU cores per instance.
-    # 2 CPUs allows parallel processing within each instance.
-    # The 6 agents run concurrently — more CPUs = faster execution.
-
     --timeout=300 \
-    # Request timeout in seconds.
-    # 300 seconds = 5 minutes maximum per request.
-    # A full analysis run with 6 agents typically takes 15-60 seconds.
-    # We set 300 as a generous safety buffer.
-
     --concurrency=1 \
-    # How many requests one instance handles simultaneously.
-    # 1 = one analysis run per instance at a time.
-    # This prevents memory pressure from concurrent heavy workloads.
-    # Cloud Run scales OUT (more instances) not UP (more concurrent) for us.
-
     --no-allow-unauthenticated \
-    # Require authentication for all requests.
-    # Without this, the API is publicly accessible — anyone on the internet
-    # could trigger expensive analysis runs on our behalf.
-    # Callers must include a Google identity token in the Authorization header.
-    # Use --allow-unauthenticated for a public demo (personal GCP account).
-
     --project=${PROJECT_ID}
 
 echo "✓ Deployed to Cloud Run"

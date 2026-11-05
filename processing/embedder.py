@@ -3,7 +3,7 @@
 #
 # PURPOSE:
 #   This file takes every TextChunk produced by chunker.py and
-#   converts it into a vector embedding — a list of 1536 numbers
+#   converts it into a vector embedding — a list of 768 numbers
 #   that mathematically represent the MEANING of that chunk.
 #
 # WHAT IS A VECTOR EMBEDDING — EXPLAINED SIMPLY:
@@ -15,29 +15,27 @@
 #   would also be very close together.
 #
 #   A vector embedding is exactly this — a position on that giant
-#   map, expressed as 1536 numbers (coordinates).
+#   map, expressed as 768 numbers (coordinates).
 #
 #   WHY DOES THIS MATTER FOR MOSAIC?
 #   When our Missing Results agent asks "find studies where sponsor
-#   never posted results", we convert that QUESTION into 1536 numbers
+#   never posted results", we convert that QUESTION into 768 numbers
 #   too. Then pgvector finds the chunks whose numbers are closest
 #   to the question's numbers. That is semantic search —
 #   finding by MEANING, not by keyword matching.
 #
-# WHY text-embedding-3-small AND NOT text-embedding-3-large?
-#   text-embedding-3-large produces 3072 dimensions but pgvector's
-#   hnsw index has a 2000-dimension hard limit. We discovered this
-#   during our build — the index creation failed with a clear error.
-#   text-embedding-3-small produces 1536 dimensions — well within
-#   the limit, cheaper, faster, and more than sufficient quality
-#   for clinical trial signal detection.
-#   This is a real production constraint we hit and solved.
+# WHY gemini-embedding-001 AT 768 DIMENSIONS?
+#   gemini-embedding-001 produces 3072 dimensions by default, but
+#   pgvector's hnsw index has a 2000-dimension hard limit.
+#   We request 768 dimensions (output_dimensionality) instead, which
+#   is well within the limit and matches the VECTOR(768) columns in
+#   deployment/gcp/cloudsql_init.sql.
 #
 # BATCHING — WHY WE DON'T EMBED ONE CHUNK AT A TIME:
 #   If we sent one API call per chunk, 300 chunks = 300 API calls.
-#   That is slow and expensive. OpenAI accepts up to 100 chunks
+#   That is slow and expensive. Gemini accepts up to 100 chunks
 #   in a single API call. We batch 50 at a time — fast, efficient,
-#   and within OpenAI's rate limits comfortably.
+#   and within Gemini's rate limits comfortably.
 #
 # SHOULD YOU RUN THIS FILE DIRECTLY?
 #   No. This file defines a class used by run_processing.py.
@@ -51,7 +49,7 @@
 
 
 import asyncio
-# asyncio for async/await — OpenAI calls are network requests
+# asyncio for async/await — Gemini calls are network requests
 # and we want our program to stay responsive while waiting.
 
 from dataclasses import dataclass
@@ -73,21 +71,21 @@ logger = setup_logging(__name__)
 # ─────────────────────────────────────────────────────────────
 
 BATCH_SIZE = 50
-# How many chunks to send to OpenAI in one API call.
-# OpenAI accepts up to 100 inputs per call.
+# How many chunks to send to Gemini in one API call.
+# Gemini accepts up to 100 inputs per call.
 # We use 50 as a safe, comfortable batch size that:
-#   - Stays well within OpenAI's limits
+#   - Stays well within Gemini's limits
 #   - Processes 300 chunks in just 6 API calls instead of 300
 #   - Gives us a natural retry unit if one batch fails
 
 RETRY_ATTEMPTS = 3
 # How many times to retry a failed embedding API call.
-# OpenAI occasionally returns 429 (rate limit) or 500 (server error).
+# Gemini occasionally returns 429 (rate limit) or 500 (server error).
 # Retrying automatically handles these transient failures.
 
 RETRY_SLEEP_SECONDS = 2
 # How long to wait between retry attempts.
-# 2 seconds gives OpenAI time to recover from a rate limit hit
+# 2 seconds gives Gemini time to recover from a rate limit hit
 # before we try again.
 
 
@@ -108,7 +106,7 @@ class EmbeddedChunk:
 
     This is what gets saved to the Cloud SQL chunks table.
     Every field from TextChunk is carried over, plus one new field:
-    embedding — the list of 1536 numbers representing this chunk's meaning.
+    embedding — the list of 768 numbers representing this chunk's meaning.
 
     Fields:
         chunk_id:    Unique identifier. Example: "NCT04788680_chunk_0"
@@ -117,7 +115,7 @@ class EmbeddedChunk:
         chunk_index: Position in the original document (0, 1, 2...)
         source:      "study" or "paper"
         word_count:  Number of words in this chunk.
-        embedding:   1536 floating point numbers from OpenAI.
+        embedding:   768 floating point numbers from Gemini.
                      This is the mathematical representation of meaning.
                      Two chunks that mean similar things will have
                      embeddings that are numerically close to each other.
@@ -131,8 +129,8 @@ class EmbeddedChunk:
     word_count:  int
     embedding:   list[float]
     # list[float] means: a list of floating point numbers.
-    # text-embedding-3-small always produces exactly 1536 of them.
-    # Example (first 3 of 1536): [0.023, -0.041, 0.891, ...]
+    # gemini-embedding-001 is configured to produce exactly 768 of them.
+    # Example (first 3 of 768): [0.023, -0.041, 0.891, ...]
     # These numbers have no human-readable meaning on their own —
     # their meaning only emerges when you COMPARE them to other
     # embeddings using cosine similarity.
@@ -144,8 +142,8 @@ class EmbeddedChunk:
 
 class Embedder:
     """
-    Converts TextChunks into EmbeddedChunks using OpenAI's
-    text-embedding-3-small model.
+    Converts TextChunks into EmbeddedChunks using Gemini's
+    gemini-embedding-001 model.
 
     Processes chunks in batches of BATCH_SIZE for efficiency.
     Automatically retries failed API calls up to RETRY_ATTEMPTS times.
@@ -184,7 +182,7 @@ class Embedder:
         Converts a list of TextChunks into EmbeddedChunks.
 
         Splits the input into batches of BATCH_SIZE and processes
-        each batch with one OpenAI API call. Much more efficient
+        each batch with one Gemini API call. Much more efficient
         than one API call per chunk.
 
         Args:
@@ -192,7 +190,7 @@ class Embedder:
 
         Returns:
             List of EmbeddedChunk objects — same chunks but now
-            each has a 1536-number embedding attached.
+            each has a 768-number embedding attached.
             Any chunk that fails to embed is skipped — not fatal.
         """
 
@@ -233,7 +231,7 @@ class Embedder:
             if batch_num < len(batches) - 1:
                 await asyncio.sleep(0.5)
                 # Small pause between batches.
-                # 0.5 seconds is enough to avoid hitting OpenAI's
+                # 0.5 seconds is enough to avoid hitting Gemini's
                 # rate limits while not slowing us down much.
                 # We do NOT sleep after the last batch — no point.
 
@@ -352,9 +350,9 @@ class Embedder:
         batch: list[TextChunk],
     ) -> list[EmbeddedChunk]:
         """
-        Makes ONE OpenAI API call to embed an entire batch of chunks.
+        Makes ONE Gemini API call to embed an entire batch of chunks.
 
-        This is the method that actually talks to OpenAI.
+        This is the method that actually talks to Gemini.
         It sends up to BATCH_SIZE chunk texts in one request
         and gets back one embedding per chunk.
 
@@ -365,7 +363,7 @@ class Embedder:
             List of EmbeddedChunks with embeddings attached.
 
         Raises:
-            Exception: If the OpenAI API call fails.
+            Exception: If the Gemini API call fails.
                        The caller (_embed_batch_with_retry) handles this.
         """
 

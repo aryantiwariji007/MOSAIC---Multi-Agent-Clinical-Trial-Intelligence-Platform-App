@@ -71,7 +71,7 @@ AGENT_TOOLS = [
     fetch_study_details,        # get full study details if needed
 ]
 # Each agent gets ONLY the tools it actually needs.
-# Giving an agent too many tools confuses GPT-4o — it spends
+# Giving an agent too many tools confuses Gemini — it spends
 # reasoning capacity deciding which tool to use instead of
 # focusing on the actual analysis task.
 # This focused toolset keeps the agent sharp and efficient.
@@ -91,7 +91,7 @@ _llm = ChatGoogleGenerativeAI(
     google_api_key=settings.gemini_api_key,
 ).bind_tools(AGENT_TOOLS)
 # .bind_tools() attaches our tool list to the LLM.
-# Now when GPT-4o reasons and decides it needs to search the database,
+# Now when Gemini reasons and decides it needs to search the database,
 # it can emit a "tool_call" in its response.
 # LangGraph sees the tool_call, executes the right function,
 # and feeds the result back to the agent automatically.
@@ -129,7 +129,7 @@ async def missing_results_node(state: MosaicState) -> dict:
         # Format as a bulleted list for the system prompt.
         # "\n".join() puts each rule on its own line.
         # f"- {r}" adds a dash before each rule for readability.
-        # GPT-4o reads these rules and applies them during analysis.
+        # Gemini reads these rules and applies them during analysis.
 
         # ── STEP 2: BUILD THE SYSTEM PROMPT ────────────────────────────
         system_prompt = f"""You are the Missing Results Agent for MOSAIC —
@@ -171,7 +171,7 @@ Return a JSON block exactly like this:
 
 If you find no signals, say "NO_SIGNALS_FOUND" clearly.
 """
-        # The system prompt is GPT-4o's entire instruction set.
+        # The system prompt is Gemini's entire instruction set.
         # It defines the agent's role, its rules, its workflow,
         # and the exact output format we need.
         # The more precise and structured this prompt is,
@@ -216,7 +216,7 @@ studies with missing results. Generate signals for every violation you find.
             # either calls a tool or writes its final answer.
 
             response = await _llm.ainvoke(messages)
-            # ainvoke() sends the full conversation to GPT-4o and
+            # ainvoke() sends the full conversation to Gemini and
             # gets back the agent's next action.
             # response.content = text the agent wrote
             # response.tool_calls = tools the agent wants to call
@@ -243,7 +243,7 @@ studies with missing results. Generate signals for every violation you find.
                 tool_result = await _execute_tool(tool_call, AGENT_TOOLS)
                 # Run the tool the agent requested and get the result.
                 # _execute_tool() finds the right tool function by name
-                # and calls it with the arguments GPT-4o specified.
+                # and calls it with the arguments Gemini specified.
 
                 messages.append(
                     HumanMessage(
@@ -251,7 +251,7 @@ studies with missing results. Generate signals for every violation you find.
                     )
                 )
                 # Add the tool result to the conversation.
-                # Now GPT-4o can read what the tool returned and
+                # Now Gemini can read what the tool returned and
                 # decide what to do next — call another tool or
                 # write its final analysis.
 
@@ -308,18 +308,18 @@ def _parse_signals(response_text: str, agent_name: str) -> list[SignalOutput]:
     """
     Extracts signal JSON blocks from the agent's text response.
 
-    GPT-4o writes signals as JSON blocks in its response text.
+    Gemini writes signals as JSON blocks in its response text.
     This function finds and parses every JSON block.
 
     WHY PARSE FROM TEXT?
-    We could ask GPT-4o to return structured JSON directly.
+    We could ask Gemini to return structured JSON directly.
     But agents need to explain their reasoning in plain text TOO —
     the text before and after the JSON contains valuable context
     for debugging and audit trails.
     Parsing JSON from mixed text gives us both.
 
     Args:
-        response_text: The full text response from GPT-4o.
+        response_text: The full text response from Gemini.
         agent_name:    Used to tag each signal with its source agent.
 
     Returns:
@@ -361,7 +361,7 @@ def _parse_signals(response_text: str, agent_name: str) -> list[SignalOutput]:
                 "evidence":    signal_data.get("evidence", []),
                 "confidence":  float(signal_data.get("confidence", 0.5)),
                 # float() ensures confidence is always a number.
-                # If GPT-4o somehow returned a string like "0.85",
+                # If Gemini somehow returned a string like "0.85",
                 # float("0.85") = 0.85 — safe conversion.
             }
             signals.append(signal)
@@ -376,14 +376,14 @@ def _parse_signals(response_text: str, agent_name: str) -> list[SignalOutput]:
 
 async def _execute_tool(tool_call: dict, available_tools: list) -> str:
     """
-    Finds and executes the tool that GPT-4o requested.
+    Finds and executes the tool that Gemini requested.
 
     LangGraph agents emit tool_calls in their responses — these
-    contain the tool name and arguments GPT-4o wants to use.
+    contain the tool name and arguments Gemini wants to use.
     This function looks up the right tool by name and calls it.
 
     Args:
-        tool_call:       The tool call from GPT-4o response.
+        tool_call:       The tool call from Gemini response.
                          Contains: name (string) and args (dict).
         available_tools: List of tool functions available to this agent.
 
@@ -394,7 +394,7 @@ async def _execute_tool(tool_call: dict, available_tools: list) -> str:
     tool_name = tool_call.get("name", "")
     tool_args = tool_call.get("args", {})
     # Extract the tool name and arguments from the tool_call dict.
-    # tool_name: which function GPT-4o wants to call
+    # tool_name: which function Gemini wants to call
     # tool_args: the arguments it wants to pass to that function
 
     tool_func = None

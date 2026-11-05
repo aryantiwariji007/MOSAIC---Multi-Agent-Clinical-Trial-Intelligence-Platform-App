@@ -440,7 +440,7 @@ class ProceduralStore:
         This is called at the VERY START of every agent session —
         before the agent does any analysis. The agent reads these
         rules and incorporates them into its system prompt so that
-        GPT-4o reasons according to them.
+        Gemini reasons according to them.
 
         The returned list contains BOTH:
         - Default rules (built-in at startup)

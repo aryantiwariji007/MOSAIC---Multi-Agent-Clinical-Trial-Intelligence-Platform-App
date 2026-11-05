@@ -88,8 +88,8 @@ from config.settings import settings
 # Our centralised settings object — reads all values from .env.
 # We use it for:
 #   settings.db_host, db_port, db_name, db_user, db_password
-#   settings.openai_api_key
-#   settings.openai_embedding_model
+#   settings.gemini_api_key
+#   settings.gemini_embedding_model
 
 from config.logging_config import setup_logging
 
@@ -299,7 +299,7 @@ class EpisodicStore:
     # class itself (cls).
     #
     # Normal method:   def my_method(self, ...)
-    #                  → has access to self._pool, self._openai etc.
+    #                  → has access to self._pool, self._embeddings etc.
     #
     # Static method:   @staticmethod
     #                  def my_method(...)
@@ -403,7 +403,7 @@ class EpisodicStore:
         # text: str  → this method takes one string as input
         # -> list[float] → and returns a list of floating point numbers
         """
-        Converts any text string into a 1536-number vector embedding.
+        Converts any text string into a 768-number vector embedding.
 
         WHAT IS AN EMBEDDING — ONE MORE TIME SIMPLY:
         An embedding is a position on a giant meaning map.
@@ -424,14 +424,12 @@ class EpisodicStore:
             text: Any text string to convert to an embedding.
 
         Returns:
-            A list of exactly 1536 floating point numbers.
-            Example (first 3 of 1536): [0.023, -0.041, 0.891, ...]
+            A list of exactly 768 floating point numbers.
+            Example (first 3 of 768): [0.023, -0.041, 0.891, ...]
         """
 
         return await self._embeddings.aembed_query(text)
-        # response.data is a list of embedding results.
-        # [0] gets the first (and only) result — we only sent one text.
-        # .embedding is the list of 1536 floats we need.
+        # aembed_query() returns the list of 768 floats we need.
         # This is what gets stored in the database's VECTOR column.
 
     # ──────────────────────────────────────────────────────────
@@ -442,7 +440,7 @@ class EpisodicStore:
         self,
         # self refers to the EpisodicStore instance.
         # All instance methods receive self as their first parameter.
-        # Through self we can access self._pool, self._openai etc.
+        # Through self we can access self._pool, self._embeddings etc.
 
         agent_name: str,
         # Which agent is saving this episode.
@@ -459,7 +457,7 @@ class EpisodicStore:
         # "Investigated NCT04788680. Sponsor: Novo Nordisk.
         #  Trial completed May 2019. Results never posted.
         #  Enrolled 1200 participants. Phase 3 diabetes study."
-        # THIS is what gets converted to 1536 numbers and stored.
+        # THIS is what gets converted to 768 numbers and stored.
         # Future searches compare against this content.
 
         nct_id: str | None = None,
@@ -486,7 +484,7 @@ class EpisodicStore:
         WHAT HAPPENS INSIDE THIS METHOD:
         1. Makes sure the database connection is open
         2. Generates a unique ID for this episode
-        3. Converts the content to a 1536-number embedding
+        3. Converts the content to a 768-number embedding
         4. Inserts all of this into the episodes table
         5. Returns the episode_id
 
@@ -514,8 +512,8 @@ class EpisodicStore:
         # Every episode gets its own unique ID — no two ever clash.
 
         embedding = await self._embed(content)
-        # Convert the episode content to a 1536-number vector.
-        # We await this because it makes a network call to OpenAI.
+        # Convert the episode content to a 768-number vector.
+        # We await this because it makes a network call to Gemini.
         # This embedding is what enables semantic search later —
         # "find episodes similar in meaning to this query."
         # We embed the CONTENT (what the agent found) not the
@@ -576,7 +574,7 @@ class EpisodicStore:
                 # $5 — what happened (can be None)
 
                 embedding,
-                # $6 — the 1536-number list from OpenAI
+                # $6 — the 768-number list from Gemini
                 # Our custom codec (registered in _init_connection)
                 # automatically converts this Python list to the
                 # format pgvector expects. We do not need to do
@@ -618,7 +616,7 @@ class EpisodicStore:
         self,
         query: str,
         # The question we are asking about past sessions.
-        # This is converted to a 1536-number embedding and compared
+        # This is converted to a 768-number embedding and compared
         # against all stored episode embeddings.
         # Example: "find episodes where sponsor never posted results"
         # Example: "find episodes about Novo Nordisk"
@@ -660,7 +658,7 @@ class EpisodicStore:
 
         WHAT HAPPENS INSIDE THIS METHOD:
         1. Makes sure the database connection is open
-        2. Converts the query text to a 1536-number embedding
+        2. Converts the query text to a 768-number embedding
         3. Builds a SQL query with optional filters
         4. Uses pgvector's <=> operator to find similar episodes
         5. Returns the top_k most similar episodes as dictionaries
@@ -686,9 +684,9 @@ class EpisodicStore:
         # Same call as in save_episode() — always the first step.
 
         query_embedding = await self._embed(query)
-        # Convert the search query into 1536 numbers.
+        # Convert the search query into 768 numbers.
         # Example: "sponsor never posted results"
-        # → [0.023, -0.041, 0.891, ...] (1536 numbers)
+        # → [0.023, -0.041, 0.891, ...] (768 numbers)
         # These numbers are then compared against every stored
         # episode embedding using cosine distance.
         # Episodes whose embeddings are numerically close to the
@@ -744,7 +742,7 @@ class EpisodicStore:
         params: list = [query_embedding, min_similarity]
         # params is the list of values that replace $1, $2, $3... in the SQL.
         # We start with:
-        #   $1 = query_embedding  (the 1536-number query vector)
+        #   $1 = query_embedding  (the 768-number query vector)
         #   $2 = min_similarity   (the threshold, e.g. 0.5)
         # As we add more optional filters below, we add to this list.
 

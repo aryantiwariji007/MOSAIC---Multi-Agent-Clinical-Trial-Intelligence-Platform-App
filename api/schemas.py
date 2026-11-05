@@ -150,7 +150,7 @@ class AnalysisResponse(BaseModel):
     run_id:                   str
     task:                     str
     final_brief:              str
-    # The GPT-4o compiled intelligence brief — the main deliverable.
+    # The Gemini compiled intelligence brief — the main deliverable.
     # Plain English narrative ready for an analyst to read and act on.
 
     total_signals:            int

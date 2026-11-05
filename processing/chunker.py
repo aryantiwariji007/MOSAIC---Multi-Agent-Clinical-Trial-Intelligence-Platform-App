@@ -4,12 +4,12 @@
 # PURPOSE:
 #   This file takes a long study document and breaks it into smaller,
 #   overlapping pieces of text called "chunks".
-#   Each chunk is then sent to OpenAI in the next step (embedder.py)
+#   Each chunk is then sent to Gemini in the next step (embedder.py)
 #   to get its vector embedding — a mathematical representation of
 #   what that piece of text MEANS.
 #
 # WHY DO WE NEED TO CHUNK AT ALL?
-#   OpenAI's embedding model has a token limit — it cannot process
+#   Gemini's embedding model has a token limit — it cannot process
 #   an entire study document in one shot. A single clinical trial
 #   record can easily be 2000-5000 words long. We must break it
 #   into smaller pieces first.
@@ -286,7 +286,7 @@ class Chunker:
         Combines all a study's fields into one labelled text block.
 
         WHY LABEL EACH FIELD?
-        When OpenAI embeds this text, the labels help the model
+        When Gemini embeds this text, the labels help the model
         understand what it is reading. "SPONSOR: Novo Nordisk"
         is much more informative than just "Novo Nordisk" sitting
         there with no context. Labels make embeddings more precise.
